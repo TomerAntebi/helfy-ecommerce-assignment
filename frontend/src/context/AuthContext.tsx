@@ -1,5 +1,13 @@
-import { createContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import type { AuthUser } from '../types';
+import {
+  getToken,
+  getRawUser,
+  storeToken,
+  storeUser,
+  removeToken,
+  removeUser,
+} from '../utils/authStorage';
 
 export interface AuthContextValue {
   user: AuthUser | null;
@@ -12,7 +20,7 @@ export const AuthContext = createContext<AuthContextValue | null>(null);
 
 const loadUserFromStorage = (): AuthUser | null => {
   try {
-    const raw = localStorage.getItem('user');
+    const raw = getRawUser();
     if (!raw) return null;
     return JSON.parse(raw) as AuthUser;
   } catch {
@@ -22,21 +30,29 @@ const loadUserFromStorage = (): AuthUser | null => {
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(loadUserFromStorage);
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
+  const [token, setToken] = useState<string | null>(getToken);
 
   const login = useCallback((newToken: string, newUser: AuthUser) => {
-    localStorage.setItem('token', newToken);
-    localStorage.setItem('user', JSON.stringify(newUser));
+    storeToken(newToken);
+    storeUser(newUser);
     setToken(newToken);
     setUser(newUser);
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    removeToken();
+    removeUser();
     setToken(null);
     setUser(null);
   }, []);
+
+  // Handle session expiry: api.ts dispatches this event on 401 (non-auth endpoints).
+  // ProtectedRoute redirects to /login automatically once user becomes null.
+  useEffect(() => {
+    const handler = () => logout();
+    window.addEventListener('auth:unauthorized', handler);
+    return () => window.removeEventListener('auth:unauthorized', handler);
+  }, [logout]);
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout }}>

@@ -72,7 +72,14 @@ export const addItem = async (
     throw new AppError('Product not found', 404);
   }
 
-  if (productRows[0].stock < quantity) {
+  // Check existing cart quantity for this user + product before upsert
+  const [existingRows] = await pool.query<RowDataPacket[]>(
+    'SELECT quantity FROM cart_items WHERE user_id = ? AND product_id = ?',
+    [userId, productId]
+  );
+  const existingQty = existingRows.length > 0 ? (existingRows[0].quantity as number) : 0;
+
+  if (productRows[0].stock < existingQty + quantity) {
     throw new AppError('Insufficient stock', 400);
   }
 
@@ -145,15 +152,27 @@ export const updateItem = async (
     return null;
   }
 
+  // Fetch item + product stock in one query to validate before updating
+  const [stockRows] = await pool.query<RowDataPacket[]>(
+    `SELECT p.stock FROM cart_items ci
+     JOIN products p ON ci.product_id = p.id
+     WHERE ci.id = ? AND ci.user_id = ?`,
+    [itemId, userId]
+  );
+
+  if (stockRows.length === 0) {
+    throw new AppError('Cart item not found', 404);
+  }
+
+  if ((stockRows[0].stock as number) < quantity) {
+    throw new AppError('Insufficient stock', 400);
+  }
+
   // Update quantity
-  const [result] = await pool.query<ResultSetHeader>(
+  await pool.query<ResultSetHeader>(
     'UPDATE cart_items SET quantity = ? WHERE id = ? AND user_id = ?',
     [quantity, itemId, userId]
   );
-
-  if (result.affectedRows === 0) {
-    throw new AppError('Cart item not found', 404);
-  }
 
   // Get the updated cart item
   const [rows] = await pool.query<RowDataPacket[]>(

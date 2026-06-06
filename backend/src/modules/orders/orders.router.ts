@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { body } from 'express-validator';
+import { body, param } from 'express-validator';
 import { authenticate } from '../../middleware/auth.middleware';
 import * as ordersController from './orders.controller';
 
@@ -8,7 +8,12 @@ const router = Router();
 // All order routes require authentication
 router.get('/', authenticate, ordersController.getOrders);
 
-router.get('/:id', authenticate, ordersController.getOrderById);
+router.get(
+  '/:id',
+  authenticate,
+  param('id').isInt({ min: 1 }).withMessage('Order ID must be a positive integer'),
+  ordersController.getOrderById
+);
 
 router.post(
   '/',

@@ -2,9 +2,17 @@ import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { pool } from '../../config/db';
+import { config } from '../../config/env';
 import { AppError } from '../../types';
 
 const BCRYPT_ROUNDS = 12;
+
+const issueToken = (userId: number, email: string): string =>
+  jwt.sign(
+    { id: userId, email },
+    config.JWT_SECRET,
+    { expiresIn: config.JWT_EXPIRES_IN } as jwt.SignOptions
+  );
 
 interface SignupData {
   email: string;
@@ -52,23 +60,9 @@ export const signup = async (data: SignupData): Promise<AuthResponse> => {
 
   const userId = result.insertId;
 
-  // Generate JWT
-  const jwtSecret = process.env.JWT_SECRET;
-  if (!jwtSecret) throw new AppError('JWT_SECRET is not configured', 500);
-  const token = jwt.sign(
-    { id: userId, email },
-    jwtSecret,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
-  );
-
   return {
-    token,
-    user: {
-      id: userId,
-      email,
-      first_name,
-      last_name,
-    },
+    token: issueToken(userId, email),
+    user: { id: userId, email, first_name, last_name },
   };
 };
 
@@ -94,17 +88,8 @@ export const login = async (data: LoginData): Promise<AuthResponse> => {
     throw new AppError('Invalid credentials', 401);
   }
 
-  // Generate JWT
-  const jwtSecret = process.env.JWT_SECRET;
-  if (!jwtSecret) throw new AppError('JWT_SECRET is not configured', 500);
-  const token = jwt.sign(
-    { id: user.id, email: user.email },
-    jwtSecret,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
-  );
-
   return {
-    token,
+    token: issueToken(user.id, user.email),
     user: {
       id: user.id,
       email: user.email,

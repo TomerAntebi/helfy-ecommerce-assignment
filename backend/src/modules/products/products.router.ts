@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { query, param } from 'express-validator';
 import * as productsController from './products.controller';
 
 const router = Router();
@@ -7,8 +8,23 @@ const router = Router();
 // Otherwise "categories" will be interpreted as an ID parameter
 router.get('/categories', productsController.getCategories);
 
-router.get('/', productsController.getProducts);
+router.get(
+  '/',
+  [
+    query('search').optional().isString().trim(),
+    query('category').optional().isString().trim(),
+    query('min_price').optional().isFloat({ min: 0 }).withMessage('min_price must be a non-negative number'),
+    query('max_price').optional().isFloat({ min: 0 }).withMessage('max_price must be a non-negative number'),
+    query('page').optional().isInt({ min: 1 }).withMessage('page must be a positive integer'),
+    query('limit').optional().isInt({ min: 1, max: 50 }).withMessage('limit must be between 1 and 50'),
+  ],
+  productsController.getProducts
+);
 
-router.get('/:id', productsController.getProductById);
+router.get(
+  '/:id',
+  param('id').isInt({ min: 1 }).withMessage('Product ID must be a positive integer'),
+  productsController.getProductById
+);
 
 export default router;

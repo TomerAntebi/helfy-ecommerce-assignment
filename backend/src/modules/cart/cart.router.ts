@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { body } from 'express-validator';
+import { body, param } from 'express-validator';
 import { authenticate } from '../../middleware/auth.middleware';
 import * as cartController from './cart.controller';
 
@@ -12,7 +12,7 @@ router.post(
   '/items',
   authenticate,
   [
-    body('product_id').isInt().withMessage('Product ID must be an integer'),
+    body('product_id').isInt({ min: 1 }).withMessage('Product ID must be a positive integer'),
     body('quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
   ],
   cartController.addItem
@@ -22,12 +22,18 @@ router.put(
   '/items/:id',
   authenticate,
   [
+    param('id').isInt({ min: 1 }).withMessage('Item ID must be a positive integer'),
     body('quantity').isInt({ min: 0 }).withMessage('Quantity must be a non-negative integer'),
   ],
   cartController.updateItem
 );
 
-router.delete('/items/:id', authenticate, cartController.removeItem);
+router.delete(
+  '/items/:id',
+  authenticate,
+  param('id').isInt({ min: 1 }).withMessage('Item ID must be a positive integer'),
+  cartController.removeItem
+);
 
 router.delete('/', authenticate, cartController.clearCart);
 

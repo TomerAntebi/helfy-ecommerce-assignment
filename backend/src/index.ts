@@ -1,6 +1,9 @@
+// env.ts must be the first import: it calls dotenv.config() before any other
+// module reads process.env. In Docker, variables are already in the environment
+// and this is a no-op. In local dev it loads the .env file.
+import { config } from './config/env';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import authRouter from './modules/auth/auth.router';
 import usersRouter from './modules/users/users.router';
 import productsRouter from './modules/products/products.router';
@@ -10,11 +13,8 @@ import checkoutRouter from './modules/checkout/checkout.router';
 import healthRouter from './modules/health/health.router';
 import { errorMiddleware } from './middleware/error.middleware';
 
-// Load environment variables
-dotenv.config();
-
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = config.PORT;
 
 // Middleware
 app.use(cors());

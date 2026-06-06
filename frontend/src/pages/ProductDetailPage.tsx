@@ -6,7 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
 import * as productsService from '../services/products.service';
 import type { Product } from '../types';
-import type { AxiosError } from 'axios';
+import { extractApiError } from '../utils/apiError';
 
 const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&h=600&fit=crop';
 
@@ -52,8 +52,7 @@ export const ProductDetailPage = () => {
       setAddSuccess(true);
       setTimeout(() => setAddSuccess(false), 2500);
     } catch (err) {
-      const axiosErr = err as AxiosError<{ error: string }>;
-      setAddError(axiosErr.response?.data?.error ?? 'Failed to add item');
+      setAddError(extractApiError(err, 'Failed to add item'));
     } finally {
       setAdding(false);
     }

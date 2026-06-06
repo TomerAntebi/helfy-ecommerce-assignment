@@ -409,6 +409,179 @@ N/A
 
 ---
 
+## Interaction 9 — Docker and build hardening
+
+| Field | Value |
+|-------|-------|
+| Date | 2026-06-06 |
+| Tool | Cursor (Agent mode) |
+| Model | claude-sonnet-4-5 |
+| Phase | Post Phase 6 — Hardening |
+
+### Prompt
+
+Fix Docker and build robustness issues: upgrade Node 18 to Node 22, pin nginx image version, add explicit CMD in nginx stage, fix `location /api` to `location /api/` in nginx.conf, fix VITE_API_URL build-time behavior documentation, add frontend healthcheck to docker-compose.yml, verify TypeScript build passes with strict mode, verify full Docker Compose stack builds and runs successfully.
+
+### Result
+
+- Verified `tsc && vite build` passes with zero errors under `strict: true`, `noUnusedLocals: true`, `noUnusedParameters: true` (no source changes needed — code was already clean).
+- Updated `frontend/Dockerfile`: `node:18-alpine` → `node:22-alpine`, `nginx:alpine` → `nginx:1.27-alpine`, added `CMD ["nginx", "-g", "daemon off;"]`, improved VITE_API_URL comment.
+- Updated `backend/Dockerfile`: `node:18-alpine` → `node:22-alpine`.
+- Updated `frontend/nginx.conf`: `location /api` → `location /api/` (precise prefix match; `proxy_pass http://backend:4000` with no trailing slash preserves full `/api/...` path).
+- Updated `docker-compose.yml`: added frontend healthcheck using `wget --spider -q http://127.0.0.1/` (using `127.0.0.1` not `localhost` because Alpine resolves `localhost` to `::1` but nginx listens on IPv4 only), updated Node version comment.
+- Updated `README.md`: Node version in stack table, Dockerfile descriptions, Docker architecture diagram, added VITE_API_URL behavior explanation, added Manual Intervention 5.
+- Docker Compose build: `helfy-ecommerce-assignment-frontend` and `helfy-ecommerce-assignment-backend` both built successfully with `--no-cache`.
+- Docker Compose up: all three services healthy — `db` (healthy), `backend` (healthy), `frontend` (healthy).
+- Verified: `http://localhost:3000/` → HTTP 200, `http://localhost:3000/api/health` → `{"status":"ok",...}`, products endpoint returns data through nginx proxy.
+
+### Manual Intervention
+
+No
+
+### Reason for Manual Intervention
+
+N/A
+
+---
+
+## Interaction 10 — Backend audit and hardening
+
+| Field | Value |
+|-------|-------|
+| Date | 2026-06-06 |
+| Tool | Cursor (Agent mode) |
+| Model | claude-sonnet-4-5 |
+| Phase | Post Phase 6 — Backend Hardening |
+
+### Prompt
+
+Audit all backend source files against a reported list of issues. Verify each issue against the actual code. Fix only real, relevant, assignment-ready issues. Do not rewrite the backend, do not change the database schema, do not add new libraries.
+
+### Verified Issues (real vs. not real)
+
+| Issue | Real? | Action |
+|-------|-------|--------|
+| dotenv loads after db.ts pool creation | **YES** | Fixed |
+| DB_PORT becomes NaN if unset | **YES** | Fixed |
+| No env var validation at startup | **YES** | Fixed |
+| JWT_SECRET cast as string in auth middleware | **YES** | Fixed |
+| Error middleware leaks raw error messages | **YES** | Fixed |
+| issueToken duplicated in signup/login | **YES** | Fixed |
+| No query param validation on products route | **YES** | Fixed |
+| SELECT * in products service | **YES** | Fixed |
+| addItem stock check ignores existing cart quantity | **YES** | Fixed |
+| updateItem has no stock check | **YES** | Fixed |
+| No :id param validation in routers | **YES** | Fixed |
+| Phone field only max-length validated | **YES** | Fixed |
+| cart_item_ids validation too permissive | **YES** | Fixed |
+| Health endpoint does not check DB | **YES** | Fixed |
+| noUnusedLocals/noUnusedParameters missing | **YES** | Fixed |
+| Cart/order ownership scoping wrong | **NOT real** | Already correct in all queries |
+| Orders transaction missing | **NOT real** | Full transaction already implemented |
+| Empty PUT /users/me should error | **NOT real** | Returns current user gracefully |
+
+### Result
+
+Created `backend/src/config/env.ts`: loads dotenv once, validates all required env vars, exports typed `config` object. Updated `db.ts` and `auth.middleware.ts` and `auth.service.ts` to consume `config`. Fixed `index.ts` to import `config` as its first import (ensuring dotenv loads before pool creation). Fixed `error.middleware.ts` to use `instanceof AppError` and return generic message for programmer errors. Extracted `issueToken` helper in `auth.service.ts`. Added `query`/`param` validators to products, cart, and orders routers. Added `validationResult` checks to `getCategories`, `removeItem`, and `getOrderById` controllers. Replaced `SELECT *` with explicit columns in `products.service.ts`. Added existing-cart-quantity check and new updateItem stock check in `cart.service.ts`. Added `SELECT 1` DB connectivity check to `health.router.ts` (returns 503 on DB failure). Strengthened checkout `cart_item_ids` validation. Added phone format validation in `users.router.ts`. Removed unused `AppError` import from `checkout.service.ts`. Added `noUnusedLocals: true` and `noUnusedParameters: true` to `backend/tsconfig.json`. Fixed `_req` naming in `products.controller.ts` `getCategories` to satisfy `noUnusedParameters`. Backend `npm run build` passes with zero errors. Docker `docker compose build backend --no-cache` passes. Full stack healthy after `docker compose up`.
+
+### Files changed
+
+- `backend/src/config/env.ts` (new)
+- `backend/src/config/db.ts`
+- `backend/src/index.ts`
+- `backend/src/middleware/error.middleware.ts`
+- `backend/src/middleware/auth.middleware.ts`
+- `backend/src/modules/auth/auth.service.ts`
+- `backend/src/modules/products/products.service.ts`
+- `backend/src/modules/products/products.router.ts`
+- `backend/src/modules/products/products.controller.ts`
+- `backend/src/modules/cart/cart.service.ts`
+- `backend/src/modules/cart/cart.router.ts`
+- `backend/src/modules/cart/cart.controller.ts`
+- `backend/src/modules/orders/orders.router.ts`
+- `backend/src/modules/orders/orders.controller.ts`
+- `backend/src/modules/health/health.router.ts`
+- `backend/src/modules/checkout/checkout.router.ts`
+- `backend/src/modules/checkout/checkout.service.ts`
+- `backend/src/modules/users/users.router.ts`
+- `backend/tsconfig.json`
+
+### Manual Intervention
+
+No
+
+### Reason for Manual Intervention
+
+N/A
+
+---
+
+---
+
+## Interaction 11 — Frontend api.ts audit and hardening
+
+### Date
+2026-06-06
+
+### Prompt summary
+Review reported issues in `frontend/src/services/api.ts` and related files. Verify which issues actually exist. Fix only real and relevant issues. Do not rewrite the frontend, change API contracts, or add new libraries.
+
+### Issues verified
+
+| # | Issue | Exists? | Action |
+|---|-------|---------|--------|
+| 1 | api.ts has too many responsibilities (creates client, injects token, clears localStorage, hard redirects) | Yes | Fixed — dispatch `auth:unauthorized` CustomEvent instead of direct redirect; AuthContext handles cleanup |
+| 2 | Hardcoded inline auth endpoint exclusion (`startsWith('/api/auth')`) | Yes | Fixed — replaced with named `AUTH_EXCLUDED_PATHS` constant and `isAuthExemptRequest` helper |
+| 3 | Direct `localStorage` access with duplicated magic string keys in api.ts and AuthContext | Yes | Fixed — created `authStorage.ts` with named constants and typed helpers; both files import from single source |
+| 4 | Magic strings `'token'` and `'user'` duplicated across api.ts and AuthContext | Yes | Fixed — exported as `AUTH_TOKEN_KEY` and `AUTH_USER_KEY` from `authStorage.ts` |
+| 5 | `err as AxiosError<{ error: string }>` cast repeated in 9 call sites across 8 files | Yes | Fixed — created `extractApiError(error, fallback)` utility; all pages updated |
+| 6 | No-op `(response) => response` success interceptor | Yes | Intentionally left — correct Axios convention, no functional impact |
+| 7 | Interceptors registered at module scope (side effect on import) | Yes | Intentionally left — acceptable for this assignment scope |
+| 8 | Testability concerns (no DI system) | N/A | Intentionally skipped — not required for home assignment |
+
+### Issues intentionally not fixed
+
+- **No-op success interceptor**: The `(response) => response` identity is Axios convention. Removing it changes nothing functionally and the current form is standard.
+- **Module-scope interceptor registration**: Acceptable pattern for a home assignment. Creating an injectable HTTP client factory would be over-engineering.
+- **Full DI / testability**: Not required for this scope.
+
+### Files created
+
+- `frontend/src/utils/authStorage.ts` — storage key constants and localStorage helpers
+- `frontend/src/utils/apiError.ts` — `extractApiError` helper
+
+### Files changed
+
+- `frontend/src/services/api.ts` — imports `getToken` from authStorage; named `AUTH_EXCLUDED_PATHS` constant; `isAuthExemptRequest` helper; dispatches `auth:unauthorized` CustomEvent on 401 instead of hard redirect
+- `frontend/src/context/AuthContext.tsx` — imports all localStorage ops from authStorage; adds `useEffect` listening for `auth:unauthorized` event and calling `logout()`
+- `frontend/src/pages/LoginPage.tsx` — removed AxiosError cast; uses `extractApiError`
+- `frontend/src/pages/SignupPage.tsx` — removed AxiosError cast; uses `extractApiError`
+- `frontend/src/pages/ProductDetailPage.tsx` — removed AxiosError cast; uses `extractApiError`
+- `frontend/src/pages/CartPage.tsx` — removed AxiosError casts (2); uses `extractApiError`
+- `frontend/src/pages/CheckoutPage.tsx` — removed AxiosError cast; uses `extractApiError`
+- `frontend/src/pages/ProfilePage.tsx` — removed AxiosError cast; uses `extractApiError`
+- `frontend/src/pages/ProductsPage.tsx` — removed AxiosError cast; uses `extractApiError`
+- `frontend/src/pages/HomePage.tsx` — removed AxiosError cast; uses `extractApiError`
+
+### Frontend build result
+
+`tsc && vite build` — exit code 0, zero TypeScript errors, zero warnings. 116 modules transformed.
+
+### Remaining risks
+
+- The `auth:unauthorized` event is a `window`-level global. In a multi-tab scenario a 401 in one tab will log out that tab only (not others). Acceptable for this assignment.
+- `extractApiError` still uses an `as` cast internally. The shape `{ error: string }` is a convention matching the backend's `AppError` responses. If the backend shape changes, one file updates instead of eight.
+
+### Manual Intervention
+
+No
+
+### Reason for Manual Intervention
+
+N/A
+
+---
+
 ## Models Used — Summary
 
 | Phase | Model | Tool | Reason for selection |
@@ -422,6 +595,9 @@ N/A
 | Phase 4 — Docs recovery | claude-sonnet-4-5 | Cursor Agent | Cline did not write interaction log; Cursor reconstructed entries from generated files |
 | Phase 5 — Testing | claude-sonnet-4-5 | Cursor Agent | Full static audit, one missed .toFixed() found and fixed |
 | Phase 6 — Documentation | claude-sonnet-4-5 | Cursor Agent | README and ai-interactions.md finalized |
+| Post Phase 6 — Hardening | claude-sonnet-4-5 | Cursor Agent | Docker and build hardening: Node 22, pinned nginx, healthchecks, nginx location fix |
+| Post Phase 6 — Backend Hardening | claude-sonnet-4-5 | Cursor Agent | Backend audit: env config, error middleware, stock validation, query validation, health check |
+| Post Phase 6 — Frontend Hardening | claude-sonnet-4-5 | Cursor Agent | Frontend audit: authStorage utility, apiError utility, event-based 401 handling, named constants |
 
 ---
 
@@ -437,6 +613,9 @@ N/A
 | Cursor (Agent mode) | Interaction log reconstruction for Phases 1–2 | Phase 4–5 (Cline did not document) |
 | Cursor (Agent mode) | Testing — full static audit, final bug fix | Phase 5 |
 | Cursor (Agent mode) | Final documentation — README and ai-interactions.md | Phase 6 |
+| Cursor (Agent mode) | Docker and build hardening | Post Phase 6 |
+| Cursor (Agent mode) | Backend audit and hardening | Post Phase 6 |
+| Cursor (Agent mode) | Frontend audit and hardening — authStorage, apiError, event-based 401 | Post Phase 6 |
 
 ---
 

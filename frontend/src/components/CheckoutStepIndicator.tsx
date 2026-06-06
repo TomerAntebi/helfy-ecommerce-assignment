@@ -1,5 +1,7 @@
+import type { CheckoutStep } from '../types';
+
 interface CheckoutStepIndicatorProps {
-  currentStep: 1 | 2 | 3 | 4;
+  currentStep: CheckoutStep;
 }
 
 const STEPS = [

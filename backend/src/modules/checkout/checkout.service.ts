@@ -1,6 +1,5 @@
 import { RowDataPacket } from 'mysql2';
 import { pool } from '../../config/db';
-import { AppError } from '../../types';
 
 interface ValidateCartRequest {
   cart_item_ids: number[];

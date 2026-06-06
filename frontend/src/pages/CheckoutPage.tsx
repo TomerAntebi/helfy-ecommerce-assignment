@@ -5,13 +5,14 @@ import { ErrorMessage } from '../components/ErrorMessage';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { useCart } from '../hooks/useCart';
 import * as ordersService from '../services/orders.service';
-import type {
-  CheckoutState,
-  ShippingFormData,
-  PaymentFormData,
-  PaymentMethod,
+import {
+  CHECKOUT_STEP,
+  type CheckoutState,
+  type ShippingFormData,
+  type PaymentFormData,
+  type PaymentMethod,
 } from '../types';
-import type { AxiosError } from 'axios';
+import { extractApiError } from '../utils/apiError';
 
 type ShippingErrors = Partial<Record<keyof ShippingFormData, string>>;
 type PaymentErrors = { method?: string; last_four?: string };
@@ -31,7 +32,7 @@ export const CheckoutPage = () => {
   const { items, total, loading: cartLoading, fetchCart } = useCart();
 
   const [state, setState] = useState<CheckoutState>({
-    currentStep: 1,
+    currentStep: CHECKOUT_STEP.SHIPPING,
     shippingData: null,
     paymentData: null,
     confirmedOrderId: null,
@@ -74,13 +75,13 @@ export const CheckoutPage = () => {
   const handleStep1Submit = (e: FormEvent) => {
     e.preventDefault();
     if (!validateShipping()) return;
-    setState((s) => ({ ...s, currentStep: 2, shippingData: { ...shippingForm } }));
+    setState((s) => ({ ...s, currentStep: CHECKOUT_STEP.PAYMENT, shippingData: { ...shippingForm } }));
   };
 
   const handleStep2Submit = (e: FormEvent) => {
     e.preventDefault();
     if (!validatePayment()) return;
-    setState((s) => ({ ...s, currentStep: 3, paymentData: { ...paymentForm } }));
+    setState((s) => ({ ...s, currentStep: CHECKOUT_STEP.REVIEW, paymentData: { ...paymentForm } }));
   };
 
   const handlePlaceOrder = async () => {
@@ -99,10 +100,9 @@ export const CheckoutPage = () => {
         payment_last_four: state.paymentData.last_four,
       });
       await fetchCart();
-      setState((s) => ({ ...s, currentStep: 4, confirmedOrderId: order.id }));
+      setState((s) => ({ ...s, currentStep: CHECKOUT_STEP.CONFIRMATION, confirmedOrderId: order.id }));
     } catch (err) {
-      const axiosErr = err as AxiosError<{ error: string }>;
-      setPlaceOrderError(axiosErr.response?.data?.error ?? 'Failed to place order');
+      setPlaceOrderError(extractApiError(err, 'Failed to place order'));
     } finally {
       setSubmitting(false);
     }
@@ -116,7 +116,7 @@ export const CheckoutPage = () => {
       <CheckoutStepIndicator currentStep={state.currentStep} />
 
       {/* ── Step 1: Shipping ─────────────────────────────────────────────── */}
-      {state.currentStep === 1 && (
+      {state.currentStep === CHECKOUT_STEP.SHIPPING && (
         <div className="bg-white rounded-2xl shadow-md p-6">
           <h2 className="text-lg font-bold text-slate-800 mb-5">Shipping Address</h2>
           <form onSubmit={handleStep1Submit} noValidate className="space-y-4">
@@ -157,7 +157,7 @@ export const CheckoutPage = () => {
       )}
 
       {/* ── Step 2: Payment ──────────────────────────────────────────────── */}
-      {state.currentStep === 2 && (
+      {state.currentStep === CHECKOUT_STEP.PAYMENT && (
         <div className="bg-white rounded-2xl shadow-md p-6">
           <h2 className="text-lg font-bold text-slate-800 mb-5">Payment Method</h2>
           <form onSubmit={handleStep2Submit} noValidate className="space-y-4">
@@ -210,7 +210,7 @@ export const CheckoutPage = () => {
             <div className="flex gap-3 mt-2">
               <button
                 type="button"
-                onClick={() => setState((s) => ({ ...s, currentStep: 1 }))}
+                onClick={() => setState((s) => ({ ...s, currentStep: CHECKOUT_STEP.SHIPPING }))}
                 className="flex-1 border border-slate-300 text-slate-700 py-3 rounded-xl font-semibold hover:bg-slate-50 transition-colors"
               >
                 ← Back
@@ -227,7 +227,7 @@ export const CheckoutPage = () => {
       )}
 
       {/* ── Step 3: Review ───────────────────────────────────────────────── */}
-      {state.currentStep === 3 && state.shippingData && state.paymentData && (
+      {state.currentStep === CHECKOUT_STEP.REVIEW && state.shippingData && state.paymentData && (
         <div className="space-y-4">
           {/* Cart items */}
           <div className="bg-white rounded-2xl shadow-md p-6">
@@ -273,7 +273,7 @@ export const CheckoutPage = () => {
 
           <div className="flex gap-3">
             <button
-              onClick={() => setState((s) => ({ ...s, currentStep: 2 }))}
+              onClick={() => setState((s) => ({ ...s, currentStep: CHECKOUT_STEP.PAYMENT }))}
               className="flex-1 border border-slate-300 text-slate-700 py-3 rounded-xl font-semibold hover:bg-slate-50 transition-colors"
             >
               ← Back
@@ -290,7 +290,7 @@ export const CheckoutPage = () => {
       )}
 
       {/* ── Step 4: Confirmation ─────────────────────────────────────────── */}
-      {state.currentStep === 4 && state.confirmedOrderId !== null && (
+      {state.currentStep === CHECKOUT_STEP.CONFIRMATION && state.confirmedOrderId !== null && (
         <div className="bg-white rounded-2xl shadow-md p-10 text-center">
           <div className="text-6xl mb-4">🎉</div>
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Order placed successfully!</h2>

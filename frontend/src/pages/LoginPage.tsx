@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import * as authService from '../services/auth.service';
-import type { AxiosError } from 'axios';
+import { extractApiError } from '../utils/apiError';
 
 interface LoginForm {
   email: string;
@@ -43,8 +43,7 @@ export const LoginPage = () => {
       login(result.token, result.user);
       navigate(redirectTo, { replace: true });
     } catch (err) {
-      const axiosErr = err as AxiosError<{ error: string }>;
-      setApiError(axiosErr.response?.data?.error ?? 'Login failed. Please try again.');
+      setApiError(extractApiError(err, 'Login failed. Please try again.'));
     } finally {
       setSubmitting(false);
     }

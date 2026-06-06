@@ -121,6 +121,15 @@ export interface CartResult {
 
 // ─── Checkout ─────────────────────────────────────────────────────────────────
 
+export const CHECKOUT_STEP = {
+  SHIPPING:     1,
+  PAYMENT:      2,
+  REVIEW:       3,
+  CONFIRMATION: 4,
+} as const;
+
+export type CheckoutStep = typeof CHECKOUT_STEP[keyof typeof CHECKOUT_STEP];
+
 export interface ShippingFormData {
   full_name: string;
   street: string;
@@ -136,7 +145,7 @@ export interface PaymentFormData {
 }
 
 export interface CheckoutState {
-  currentStep: 1 | 2 | 3 | 4;
+  currentStep: CheckoutStep;
   shippingData: ShippingFormData | null;
   paymentData: PaymentFormData | null;
   confirmedOrderId: number | null;

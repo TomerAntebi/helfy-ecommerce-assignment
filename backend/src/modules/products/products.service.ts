@@ -65,7 +65,8 @@ export const getProducts = async (
   // Get paginated products
   const offset = (page - 1) * limit;
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT * FROM products ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+    `SELECT id, name, description, price, image_url, category, stock, created_at
+     FROM products ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
     [...values, limit, offset]
   );
 
@@ -79,7 +80,7 @@ export const getProducts = async (
 
 export const getProductById = async (productId: number): Promise<Product> => {
   const [rows] = await pool.query<RowDataPacket[]>(
-    'SELECT * FROM products WHERE id = ?',
+    'SELECT id, name, description, price, image_url, category, stock, created_at FROM products WHERE id = ?',
     [productId]
   );
 

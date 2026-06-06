@@ -5,7 +5,7 @@ import { EmptyState } from '../components/EmptyState';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { useCart } from '../hooks/useCart';
-import type { AxiosError } from 'axios';
+import { extractApiError } from '../utils/apiError';
 
 export const CartPage = () => {
   const { items, total, loading, updateItem, removeItem } = useCart();
@@ -18,8 +18,7 @@ export const CartPage = () => {
     try {
       await updateItem(itemId, quantity);
     } catch (err) {
-      const axiosErr = err as AxiosError<{ error: string }>;
-      setActionError(axiosErr.response?.data?.error ?? 'Failed to update item');
+      setActionError(extractApiError(err, 'Failed to update item'));
     } finally {
       setActionLoading(false);
     }
@@ -31,8 +30,7 @@ export const CartPage = () => {
     try {
       await removeItem(itemId);
     } catch (err) {
-      const axiosErr = err as AxiosError<{ error: string }>;
-      setActionError(axiosErr.response?.data?.error ?? 'Failed to remove item');
+      setActionError(extractApiError(err, 'Failed to remove item'));
     } finally {
       setActionLoading(false);
     }

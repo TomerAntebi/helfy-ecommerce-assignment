@@ -7,7 +7,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
 import * as productsService from '../services/products.service';
 import type { Product } from '../types';
-import type { AxiosError } from 'axios';
+import { extractApiError } from '../utils/apiError';
 
 export const HomePage = () => {
   const { user } = useAuth();
@@ -43,8 +43,7 @@ export const HomePage = () => {
     try {
       await addItem(product.id, 1);
     } catch (err) {
-      const axiosErr = err as AxiosError<{ error: string }>;
-      setAddError(axiosErr.response?.data?.error ?? 'Failed to add item');
+      setAddError(extractApiError(err, 'Failed to add item'));
     } finally {
       setAddingId(null);
     }

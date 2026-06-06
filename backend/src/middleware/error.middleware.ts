@@ -1,13 +1,20 @@
 import { Request, Response, NextFunction } from 'express';
+import { AppError } from '../types';
 
 export const errorMiddleware = (
   err: Error,
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): void => {
   console.error(err);
-  
-  const status = (err as { statusCode?: number }).statusCode ?? 500;
-  res.status(status).json({ success: false, error: err.message });
+
+  if (err instanceof AppError) {
+    res.status(err.statusCode).json({ success: false, error: err.message });
+    return;
+  }
+
+  // Non-AppError: programmer error or unexpected exception.
+  // Return a generic message — do not leak internal details to clients.
+  res.status(500).json({ success: false, error: 'Internal server error' });
 };

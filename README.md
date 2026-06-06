@@ -24,7 +24,7 @@ The project demonstrates the use of generative AI as a force multiplier in full-
 | Layer | Technology |
 |-------|-----------|
 | Frontend | React 18, TypeScript (strict), Vite, Tailwind CSS, React Router v6, Axios |
-| Backend | Node.js 18, Express, TypeScript (strict), mysql2, bcrypt, jsonwebtoken, express-validator |
+| Backend | Node.js 22, Express, TypeScript (strict), mysql2, bcrypt, jsonwebtoken, express-validator |
 | Database | MySQL 8.0 |
 | Runtime | Docker Compose |
 
@@ -90,11 +90,11 @@ Copy `.env.example` to `.env` and adjust values as needed. The defaults work for
 ```
 /
 ├── frontend/               React + TypeScript frontend
-│   ├── Dockerfile          Multi-stage: node:18-alpine builder → nginx:alpine server
+│   ├── Dockerfile          Multi-stage: node:22-alpine builder → nginx:1.27-alpine server
 │   ├── nginx.conf          SPA routing + /api reverse proxy to backend
 │   └── src/
 ├── backend/                Express + TypeScript backend
-│   ├── Dockerfile          node:18-alpine, npm ci, tsc build, node dist/index.js
+│   ├── Dockerfile          node:22-alpine, npm ci, tsc build, node dist/index.js
 │   └── src/
 │       ├── modules/        auth, users, products, cart, orders, checkout, health
 │       ├── middleware/     JWT auth, global error handler
@@ -125,7 +125,7 @@ All three services run inside a single Docker Compose network. There are no exte
 │                                                         │
 │  ┌──────────────┐    /api proxy    ┌──────────────────┐ │
 │  │   frontend   │ ───────────────► │     backend      │ │
-│  │  nginx:alpine│                  │  node:18-alpine  │ │
+│  │ nginx:1.27   │                  │  node:22-alpine  │ │
 │  │  port 80     │                  │  port 4000       │ │
 │  └──────────────┘                  └────────┬─────────┘ │
 │        │                                    │ mysql2    │
@@ -140,9 +140,14 @@ All three services run inside a single Docker Compose network. There are no exte
 **Startup order enforced by health checks:**
 1. `db` starts → MySQL init scripts run automatically (`01-schema.sql`, `02-seed.sql`) → healthcheck passes (`mysqladmin ping`)
 2. `backend` starts only after `db` is healthy → healthcheck passes (`GET /api/health` returns 200)
-3. `frontend` starts only after `backend` is healthy → nginx serves the built React app
+3. `frontend` starts only after `backend` is healthy → nginx serves the built React app → healthcheck passes (`wget http://127.0.0.1/`)
 
-**`VITE_API_URL` is empty at build time** — nginx proxies all `/api/*` requests to `http://backend:4000`, so Axios relative URLs work correctly without any hardcoded host.
+**`VITE_API_URL` behavior in Docker:**
+- `VITE_API_URL` is baked into the frontend bundle at build time by Vite, not read at runtime.
+- In Docker mode, `VITE_API_URL` is intentionally left empty. The Axios client defaults to `baseURL: ""`, which means all API calls use relative paths (`/api/...`).
+- Nginx then proxies `location /api/` to `http://backend:4000`, preserving the full path. A request to `http://localhost:3000/api/health` reaches the backend as `http://backend:4000/api/health`.
+- **Setting `VITE_API_URL` after the image is built has no effect.** The value is baked in at `npm run build` time. To change the API URL, rebuild the frontend image with `--build-arg VITE_API_URL=<value>`.
+- For local dev outside Docker, set `VITE_API_URL=http://localhost:4000` in the terminal before running `npm run dev`.
 
 ---
 
@@ -266,6 +271,73 @@ Changed `order.total_amount.toFixed(2)` to `Number(order.total_amount).toFixed(2
 
 ---
 
+## Manual Intervention 5 — Docker and build hardening
+
+| Field | Value |
+|-------|-------|
+| Date | 2026-06-06 |
+| Phase | Post Phase 6 — Hardening |
+| Files Affected | `frontend/Dockerfile`, `backend/Dockerfile`, `frontend/nginx.conf`, `docker-compose.yml`, `README.md`, `ai-interactions.md` |
+
+### What was fixed
+
+Six reliability issues found in the Docker and build configuration:
+
+1. **Node 18 EOL** — both `frontend/Dockerfile` and `backend/Dockerfile` used `node:18-alpine` which is end-of-life. Updated to `node:22-alpine`.
+2. **Floating nginx image** — `frontend/Dockerfile` used `nginx:alpine` (floating tag, version changes silently). Pinned to `nginx:1.27-alpine`.
+3. **Missing explicit CMD** — the nginx final stage relied on the base image default CMD. Added `CMD ["nginx", "-g", "daemon off;"]` explicitly.
+4. **nginx `location /api` without trailing slash** — matched overly broad paths (e.g. `/apitest`). Changed to `location /api/` for precise matching while preserving the full `/api/...` path in `proxy_pass`.
+5. **Frontend healthcheck missing** — `docker-compose.yml` had healthchecks for `db` and `backend` but not `frontend`. Added a healthcheck using `wget --spider -q http://127.0.0.1/` (using `127.0.0.1` explicitly because Alpine's `localhost` resolves to `::1` but nginx listens on IPv4 only).
+6. **Frontend TypeScript build verified** — confirmed `tsc && vite build` passes with zero errors under `strict: true`, `noUnusedLocals: true`, `noUnusedParameters: true`.
+
+### Why the AI missed these
+
+The original Docker setup was functional but not hardened. EOL images, floating tags, missing health checks, and nginx location precision are operational concerns that code-generation AI passes typically overlook unless explicitly included in the prompt.
+
+### How it was fixed
+
+Minimal targeted changes — no refactoring, no feature additions, no API contract changes.
+
+---
+
+## Manual Intervention 6 — Backend audit and hardening
+
+| Field | Value |
+|-------|-------|
+| Date | 2026-06-06 |
+| Phase | Post Phase 6 — Backend Hardening |
+| Files Affected | `backend/src/config/env.ts` (new), `backend/src/config/db.ts`, `backend/src/index.ts`, `backend/src/middleware/error.middleware.ts`, `backend/src/middleware/auth.middleware.ts`, `backend/src/modules/auth/auth.service.ts`, `backend/src/modules/products/products.service.ts`, `backend/src/modules/products/products.router.ts`, `backend/src/modules/products/products.controller.ts`, `backend/src/modules/cart/cart.service.ts`, `backend/src/modules/cart/cart.router.ts`, `backend/src/modules/cart/cart.controller.ts`, `backend/src/modules/orders/orders.router.ts`, `backend/src/modules/orders/orders.controller.ts`, `backend/src/modules/health/health.router.ts`, `backend/src/modules/checkout/checkout.router.ts`, `backend/src/modules/checkout/checkout.service.ts`, `backend/src/modules/users/users.router.ts`, `backend/tsconfig.json` |
+
+### What was fixed
+
+Fifteen real issues found in the backend across three categories:
+
+1. **Env loading order** — `db.ts` pool was created before `dotenv.config()` ran in `index.ts` (modules are loaded synchronously before any imperative code runs). Created `src/config/env.ts` that loads dotenv and validates all required variables at startup. Updated `index.ts` to import `env.ts` as its first import.
+2. **DB_PORT NaN** — `Number(undefined)` = `NaN`. Now defaults to `3306` via `config.DB_PORT`.
+3. **Error middleware** — All errors (including programmer errors) leaked their raw message to clients. Now uses `instanceof AppError` and returns `"Internal server error"` for unexpected exceptions.
+4. **JWT_SECRET unsafe cast** — `process.env.JWT_SECRET as string` in auth middleware bypassed the type system. Now uses validated `config.JWT_SECRET`.
+5. **Auth token duplication** — Identical JWT signing code in `signup` and `login`. Extracted private `issueToken(userId, email)` helper.
+6. **Product query param validation** — No validators on `search`, `category`, `min_price`, `max_price`, `page`, `limit`. Added `express-validator` query validators with appropriate types and ranges. Invalid params now return HTTP 400.
+7. **SELECT * in products** — Replaced with explicit column list in both product queries.
+8. **Cart addItem stock check incomplete** — Checked `stock < quantity` but ignored the existing cart quantity for the same product, allowing total cart quantity to exceed stock. Fixed to check `stock < existingQty + quantity`.
+9. **Cart updateItem no stock check** — No stock validation before updating quantity. Added pre-update stock check.
+10. **No :id param validation** — Products, cart, and orders routers accepted any string as `:id`. Added `param('id').isInt({ min: 1 })` validation.
+11. **Health endpoint no DB check** — Returned 200 regardless of DB state. Now runs `SELECT 1` and returns 503 if DB is unreachable.
+12. **checkout cart_item_ids validation weak** — Only `isArray()`. Added `min: 1` length check and per-item positive-integer validation.
+13. **Phone format validation missing** — Only max-length. Added regex allowing digits, spaces, `+`, `-`, parentheses.
+14. **Unused AppError import** — Removed from `checkout.service.ts`.
+15. **noUnusedLocals/noUnusedParameters missing** — Added to `backend/tsconfig.json`. Build passes cleanly.
+
+### Why the AI missed these
+
+The original AI generation passes (Cline Phase 1, Cursor Phase 4) focused on feature correctness and Docker runtime. Input validation completeness, env loading order, and security-hardening details are typically caught in a dedicated review pass, not initial generation.
+
+### How it was fixed
+
+All changes were minimal and targeted. No existing API contracts changed, no database schema changed, no new libraries added.
+
+---
+
 ## Known Limitations
 
 - No real payment processing. The checkout accepts a payment method selection but does not integrate with any payment gateway.
@@ -274,6 +346,7 @@ Changed `order.total_amount.toFixed(2)` to `Number(order.total_amount).toFixed(2
 - No image upload capability. Product images use external URLs from the seed data.
 - No rate limiting on the API endpoints.
 - CORS is configured to allow all origins (`cors()` with no options). Should be locked to the frontend origin in production.
+- JWT is stored in `localStorage` for assignment simplicity. In production, `httpOnly` `Secure` `SameSite` cookies would be safer.
 
 ---
 

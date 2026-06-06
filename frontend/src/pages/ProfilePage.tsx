@@ -3,7 +3,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorMessage } from '../components/ErrorMessage';
 import * as usersService from '../services/users.service';
 import type { User } from '../types';
-import type { AxiosError } from 'axios';
+import { extractApiError } from '../utils/apiError';
 
 interface ProfileForm {
   first_name: string;
@@ -62,8 +62,7 @@ export const ProfilePage = () => {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err) {
-      const axiosErr = err as AxiosError<{ error: string }>;
-      setSaveError(axiosErr.response?.data?.error ?? 'Failed to save profile');
+      setSaveError(extractApiError(err, 'Failed to save profile'));
     } finally {
       setSaving(false);
     }

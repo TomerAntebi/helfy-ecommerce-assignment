@@ -8,7 +8,7 @@ import { useCart } from '../hooks/useCart';
 import { useProducts } from '../hooks/useProducts';
 import * as productsService from '../services/products.service';
 import type { Product, ProductFilters } from '../types';
-import type { AxiosError } from 'axios';
+import { extractApiError } from '../utils/apiError';
 
 const LIMIT = 12;
 
@@ -85,8 +85,7 @@ export const ProductsPage = () => {
       try {
         await addItem(product.id, 1);
       } catch (err) {
-        const axiosErr = err as AxiosError<{ error: string }>;
-        setAddError(axiosErr.response?.data?.error ?? 'Failed to add item');
+        setAddError(extractApiError(err, 'Failed to add item'));
       } finally {
         setAddingId(null);
       }
