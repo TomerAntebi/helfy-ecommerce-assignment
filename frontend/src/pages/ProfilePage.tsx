@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorMessage } from '../components/ErrorMessage';
 import * as usersService from '../services/users.service';
@@ -26,6 +26,8 @@ export const ProfilePage = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -44,6 +46,9 @@ export const ProfilePage = () => {
       }
     };
     void fetchUser();
+    return () => {
+      if (successTimerRef.current !== null) clearTimeout(successTimerRef.current);
+    };
   }, []);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -60,7 +65,8 @@ export const ProfilePage = () => {
       });
       setUser(updated);
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2500);
+      if (successTimerRef.current !== null) clearTimeout(successTimerRef.current);
+      successTimerRef.current = setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err) {
       setSaveError(extractApiError(err, 'Failed to save profile'));
     } finally {

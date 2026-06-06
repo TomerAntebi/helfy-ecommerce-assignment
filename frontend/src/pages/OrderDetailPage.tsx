@@ -5,8 +5,10 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorMessage } from '../components/ErrorMessage';
 import * as ordersService from '../services/orders.service';
 import type { Order, OrderItemWithProduct } from '../types';
+import { getPlaceholderImage } from '../utils/images';
+import { extractApiError } from '../utils/apiError';
 
-const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=80&h=80&fit=crop';
+const PLACEHOLDER_IMAGE = getPlaceholderImage(80, 80);
 
 export const OrderDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -22,8 +24,8 @@ export const OrderDetailPage = () => {
         const result = await ordersService.getOrderById(Number(id));
         setOrder(result.order);
         setItems(result.items);
-      } catch {
-        setError('Order not found');
+      } catch (err) {
+        setError(extractApiError(err, 'Order not found'));
       } finally {
         setLoading(false);
       }

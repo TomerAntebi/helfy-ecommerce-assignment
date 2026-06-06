@@ -20,4 +20,7 @@ export const config = {
   DB_CONNECTION_LIMIT: Number(process.env.DB_CONNECTION_LIMIT) || 10,
   JWT_SECRET: required('JWT_SECRET'),
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
+  // In Docker, nginx proxies /api to the backend (same origin for the browser).
+  // For local Vite dev (npm run dev), set CORS_ORIGIN=http://localhost:5173.
+  CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:3000',
 };

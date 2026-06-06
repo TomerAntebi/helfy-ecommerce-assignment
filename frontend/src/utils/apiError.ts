@@ -1,6 +1,12 @@
-import type { AxiosError } from 'axios';
+import axios from 'axios';
 
 export const extractApiError = (error: unknown, fallback: string): string => {
-  const axiosErr = error as AxiosError<{ error: string }>;
-  return axiosErr.response?.data?.error ?? fallback;
+  if (axios.isAxiosError(error)) {
+    const data: unknown = error.response?.data;
+    if (typeof data === 'object' && data !== null && 'error' in data) {
+      const msg = (data as { error: unknown }).error;
+      if (typeof msg === 'string') return msg;
+    }
+  }
+  return fallback;
 };

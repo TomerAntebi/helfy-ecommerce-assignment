@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
+import { validateRequest } from '../../middleware/validate.middleware';
 import * as authController from './auth.controller';
 
 const router = Router();
@@ -12,6 +13,7 @@ router.post(
     body('first_name').notEmpty().trim().isLength({ max: 100 }).withMessage('First name is required and must be max 100 characters'),
     body('last_name').notEmpty().trim().isLength({ max: 100 }).withMessage('Last name is required and must be max 100 characters'),
   ],
+  validateRequest,
   authController.signup
 );
 
@@ -21,6 +23,7 @@ router.post(
     body('email').isEmail().withMessage('Valid email is required'),
     body('password').notEmpty().withMessage('Password is required'),
   ],
+  validateRequest,
   authController.login
 );
 

@@ -1,4 +1,5 @@
 import type { CartItemWithProduct } from '../types';
+import { getPlaceholderImage } from '../utils/images';
 
 interface CartItemRowProps {
   item: CartItemWithProduct;
@@ -7,7 +8,7 @@ interface CartItemRowProps {
   loading?: boolean;
 }
 
-const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&h=100&fit=crop';
+const PLACEHOLDER_IMAGE = getPlaceholderImage(100, 100);
 
 export const CartItemRow = ({ item, onQuantityChange, onRemove, loading }: CartItemRowProps) => {
   const lineTotal = Number(item.product.price) * item.quantity;

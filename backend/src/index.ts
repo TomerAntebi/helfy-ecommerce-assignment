@@ -17,7 +17,7 @@ const app = express();
 const PORT = config.PORT;
 
 // Middleware
-app.use(cors());
+app.use(cors({ origin: config.CORS_ORIGIN }));
 app.use(express.json());
 
 // Routes

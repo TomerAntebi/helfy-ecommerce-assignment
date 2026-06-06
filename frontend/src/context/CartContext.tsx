@@ -3,12 +3,11 @@ import {
   useState,
   useEffect,
   useCallback,
-  useContext,
   type ReactNode,
 } from 'react';
 import type { CartItemWithProduct } from '../types';
 import * as cartService from '../services/cart.service';
-import { AuthContext } from './AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 export interface CartContextValue {
   items: CartItemWithProduct[];
@@ -24,13 +23,13 @@ export interface CartContextValue {
 export const CartContext = createContext<CartContextValue | null>(null);
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
-  const authCtx = useContext(AuthContext);
+  const { user } = useAuth();
   const [items, setItems] = useState<CartItemWithProduct[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const fetchCart = useCallback(async () => {
-    if (!authCtx?.user) {
+    if (!user) {
       setItems([]);
       setTotal(0);
       return;
@@ -46,7 +45,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  }, [authCtx?.user]);
+  }, [user]);
 
   useEffect(() => {
     void fetchCart();

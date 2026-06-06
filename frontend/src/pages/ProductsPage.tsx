@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ProductCard } from '../components/ProductCard';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -6,6 +6,7 @@ import { ErrorMessage } from '../components/ErrorMessage';
 import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
 import { useProducts } from '../hooks/useProducts';
+import { useDebounce } from '../hooks/useDebounce';
 import * as productsService from '../services/products.service';
 import type { Product, ProductFilters } from '../types';
 import { extractApiError } from '../utils/apiError';
@@ -18,58 +19,38 @@ export const ProductsPage = () => {
   const navigate = useNavigate();
 
   const [searchInput, setSearchInput] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [category, setCategory] = useState('');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
-  const [debouncedMinPrice, setDebouncedMinPrice] = useState('');
-  const [debouncedMaxPrice, setDebouncedMaxPrice] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [categories, setCategories] = useState<string[]>([]);
   const [addingId, setAddingId] = useState<number | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
 
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchInput);
-      setCurrentPage(1);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
+  const debouncedSearch = useDebounce(searchInput);
+  const debouncedMinPrice = useDebounce(minPrice);
+  const debouncedMaxPrice = useDebounce(maxPrice);
 
-  // Debounce min price
+  // Reset to page 1 when any debounced filter value changes
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedMinPrice(minPrice);
-      setCurrentPage(1);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [minPrice]);
+    setCurrentPage(1);
+  }, [debouncedSearch, debouncedMinPrice, debouncedMaxPrice]);
 
-  // Debounce max price
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedMaxPrice(maxPrice);
-      setCurrentPage(1);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [maxPrice]);
-
-  const filters: ProductFilters = {
-    search: debouncedSearch || undefined,
-    category: category || undefined,
-    min_price: debouncedMinPrice ? Number(debouncedMinPrice) : undefined,
-    max_price: debouncedMaxPrice ? Number(debouncedMaxPrice) : undefined,
-    page: currentPage,
-    limit: LIMIT,
-  };
+  const filters = useMemo<ProductFilters>(
+    () => ({
+      search: debouncedSearch || undefined,
+      category: category || undefined,
+      min_price: debouncedMinPrice ? Number(debouncedMinPrice) : undefined,
+      max_price: debouncedMaxPrice ? Number(debouncedMaxPrice) : undefined,
+      page: currentPage,
+      limit: LIMIT,
+    }),
+    [debouncedSearch, category, debouncedMinPrice, debouncedMaxPrice, currentPage]
+  );
 
   const { products, total, loading, error } = useProducts(filters);
-
   const totalPages = Math.ceil(total / LIMIT);
 
-  // Load categories once
   useEffect(() => {
     productsService.getCategories().then(setCategories).catch(() => undefined);
   }, []);
@@ -104,7 +85,6 @@ export const ProductsPage = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-8 flex flex-wrap gap-4">
-        {/* Search */}
         <div className="flex-1 min-w-48">
           <input
             type="text"
@@ -115,7 +95,6 @@ export const ProductsPage = () => {
           />
         </div>
 
-        {/* Category */}
         <div className="min-w-36">
           <select
             value={category}
@@ -131,7 +110,6 @@ export const ProductsPage = () => {
           </select>
         </div>
 
-        {/* Price range */}
         <div className="flex items-center gap-2">
           <input
             type="number"
@@ -159,7 +137,6 @@ export const ProductsPage = () => {
         </div>
       )}
 
-      {/* Product grid */}
       {loading ? (
         <LoadingSpinner />
       ) : error ? (
@@ -179,7 +156,6 @@ export const ProductsPage = () => {
             ))}
           </div>
 
-          {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex justify-center items-center gap-2 mt-10">
               <button

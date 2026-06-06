@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
 import { authenticate } from '../../middleware/auth.middleware';
+import { validateRequest } from '../../middleware/validate.middleware';
 import * as checkoutController from './checkout.controller';
 
 const router = Router();
@@ -16,6 +17,7 @@ router.post(
       .isInt({ min: 1 })
       .withMessage('Each cart item ID must be a positive integer'),
   ],
+  validateRequest,
   checkoutController.validateCart
 );
 

@@ -5,12 +5,19 @@ interface EmptyStateProps {
   description: string;
   actionLabel: string;
   actionTo: string;
+  icon?: string;
 }
 
-export const EmptyState = ({ title, description, actionLabel, actionTo }: EmptyStateProps) => {
+export const EmptyState = ({
+  title,
+  description,
+  actionLabel,
+  actionTo,
+  icon = '🛒',
+}: EmptyStateProps) => {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="text-6xl mb-4">🛒</div>
+      <div className="text-6xl mb-4">{icon}</div>
       <h2 className="text-xl font-bold text-slate-900 mb-2">{title}</h2>
       <p className="text-slate-500 mb-6 max-w-sm">{description}</p>
       <Link

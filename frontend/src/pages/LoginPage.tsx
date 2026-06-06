@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate, useSearchParams, Navigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useSafeRedirect } from '../hooks/useSafeRedirect';
 import * as authService from '../services/auth.service';
+import { isValidEmail } from '../utils/validators';
 import { extractApiError } from '../utils/apiError';
 
 interface LoginForm {
@@ -14,8 +16,7 @@ type LoginFormErrors = Partial<Record<keyof LoginForm, string>>;
 export const LoginPage = () => {
   const { user, login } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const redirectTo = searchParams.get('redirect') ?? '/';
+  const redirectTo = useSafeRedirect();
 
   const [form, setForm] = useState<LoginForm>({ email: '', password: '' });
   const [errors, setErrors] = useState<LoginFormErrors>({});
@@ -27,7 +28,7 @@ export const LoginPage = () => {
   const validate = (data: LoginForm): boolean => {
     const newErrors: LoginFormErrors = {};
     if (!data.email) newErrors.email = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) newErrors.email = 'Invalid email format';
+    else if (!isValidEmail(data.email)) newErrors.email = 'Invalid email format';
     if (!data.password) newErrors.password = 'Password is required';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;

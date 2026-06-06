@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate, useSearchParams, Navigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useSafeRedirect } from '../hooks/useSafeRedirect';
 import * as authService from '../services/auth.service';
+import { isValidEmail } from '../utils/validators';
 import { extractApiError } from '../utils/apiError';
 
 interface SignupForm {
@@ -16,8 +18,7 @@ type SignupFormErrors = Partial<Record<keyof SignupForm, string>>;
 export const SignupPage = () => {
   const { user, login } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const redirectTo = searchParams.get('redirect') ?? '/';
+  const redirectTo = useSafeRedirect();
 
   const [form, setForm] = useState<SignupForm>({
     first_name: '',
@@ -29,14 +30,14 @@ export const SignupPage = () => {
   const [apiError, setApiError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to={redirectTo} replace />;
 
   const validate = (data: SignupForm): boolean => {
     const newErrors: SignupFormErrors = {};
     if (!data.first_name.trim()) newErrors.first_name = 'First name is required';
     if (!data.last_name.trim()) newErrors.last_name = 'Last name is required';
     if (!data.email) newErrors.email = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) newErrors.email = 'Invalid email format';
+    else if (!isValidEmail(data.email)) newErrors.email = 'Invalid email format';
     if (!data.password) newErrors.password = 'Password is required';
     else if (data.password.length < 8) newErrors.password = 'Password must be at least 8 characters';
     setErrors(newErrors);

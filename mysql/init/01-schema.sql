@@ -63,3 +63,9 @@ CREATE TABLE order_items (
   FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
   FOREIGN KEY (product_id) REFERENCES products(id)
 );
+
+-- Indexes for common query patterns
+CREATE INDEX idx_products_category   ON products(category);
+CREATE INDEX idx_products_created_at ON products(created_at);
+CREATE INDEX idx_orders_user_id      ON orders(user_id);
+CREATE INDEX idx_orders_created_at   ON orders(created_at);

@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom';
 import type { Product } from '../types';
+import { getPlaceholderImage } from '../utils/images';
 
 interface ProductCardProps {
   product: Product;
   onAddToCart?: (product: Product) => void;
 }
 
-const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop';
+const PLACEHOLDER_IMAGE = getPlaceholderImage(400, 400);
 
 export const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
   return (

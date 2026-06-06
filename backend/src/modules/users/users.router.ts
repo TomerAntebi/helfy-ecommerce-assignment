@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
 import { authenticate } from '../../middleware/auth.middleware';
+import { validateRequest } from '../../middleware/validate.middleware';
 import * as usersController from './users.controller';
 
 const router = Router();
@@ -20,6 +21,7 @@ router.put(
       .withMessage('Phone must contain only digits, spaces, +, -, parentheses and be max 30 characters'),
     body('address').optional().isLength({ max: 500 }).withMessage('Address must be max 500 characters'),
   ],
+  validateRequest,
   usersController.updateMe
 );
 

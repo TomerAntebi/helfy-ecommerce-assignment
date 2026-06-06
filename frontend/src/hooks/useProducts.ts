@@ -42,16 +42,7 @@ export const useProducts = (filters: ProductFilters): UseProductsReturn => {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    filters.search,
-    filters.category,
-    filters.min_price,
-    filters.max_price,
-    filters.page,
-    filters.limit,
-    tick,
-  ]);
+  }, [filters, tick]);
 
   const refetch = () => setTick((t) => t + 1);
 

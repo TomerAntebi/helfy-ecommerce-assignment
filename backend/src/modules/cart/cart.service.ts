@@ -7,48 +7,54 @@ interface CartResult {
   total: number;
 }
 
+// ─── Private helpers ───────────────────────────────────────────────────────────
+
+const CART_ITEM_JOIN_SQL = `SELECT
+  ci.id,
+  ci.user_id,
+  ci.product_id,
+  ci.quantity,
+  ci.created_at,
+  ci.updated_at,
+  p.id          AS p_id,
+  p.name        AS p_name,
+  p.description AS p_description,
+  p.price       AS p_price,
+  p.image_url   AS p_image_url,
+  p.category    AS p_category,
+  p.stock       AS p_stock,
+  p.created_at  AS p_created_at
+FROM cart_items ci
+JOIN products p ON ci.product_id = p.id`;
+
+const mapCartItemRow = (row: RowDataPacket): CartItemWithProduct => ({
+  id: row.id,
+  user_id: row.user_id,
+  product_id: row.product_id,
+  quantity: row.quantity,
+  created_at: row.created_at,
+  updated_at: row.updated_at,
+  product: {
+    id: row.p_id,
+    name: row.p_name,
+    description: row.p_description,
+    price: row.p_price,
+    image_url: row.p_image_url,
+    category: row.p_category,
+    stock: row.p_stock,
+    created_at: row.p_created_at,
+  },
+});
+
+// ─── Public service functions ──────────────────────────────────────────────────
+
 export const getCart = async (userId: number): Promise<CartResult> => {
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT
-      ci.id,
-      ci.user_id,
-      ci.product_id,
-      ci.quantity,
-      ci.created_at,
-      ci.updated_at,
-      p.id          AS p_id,
-      p.name        AS p_name,
-      p.description AS p_description,
-      p.price       AS p_price,
-      p.image_url   AS p_image_url,
-      p.category    AS p_category,
-      p.stock       AS p_stock,
-      p.created_at  AS p_created_at
-    FROM cart_items ci
-    JOIN products p ON ci.product_id = p.id
-    WHERE ci.user_id = ?`,
+    `${CART_ITEM_JOIN_SQL} WHERE ci.user_id = ?`,
     [userId]
   );
 
-  const items: CartItemWithProduct[] = rows.map((row) => ({
-    id: row.id,
-    user_id: row.user_id,
-    product_id: row.product_id,
-    quantity: row.quantity,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    product: {
-      id: row.p_id,
-      name: row.p_name,
-      description: row.p_description,
-      price: row.p_price,
-      image_url: row.p_image_url,
-      category: row.p_category,
-      stock: row.p_stock,
-      created_at: row.p_created_at,
-    },
-  }));
-
+  const items = rows.map(mapCartItemRow);
   const total = items.reduce(
     (sum, item) => sum + item.product.price * item.quantity,
     0
@@ -62,7 +68,6 @@ export const addItem = async (
   productId: number,
   quantity: number
 ): Promise<CartItemWithProduct> => {
-  // Validate product exists and has sufficient stock
   const [productRows] = await pool.query<RowDataPacket[]>(
     'SELECT id, stock FROM products WHERE id = ?',
     [productId]
@@ -72,7 +77,6 @@ export const addItem = async (
     throw new AppError('Product not found', 404);
   }
 
-  // Check existing cart quantity for this user + product before upsert
   const [existingRows] = await pool.query<RowDataPacket[]>(
     'SELECT quantity FROM cart_items WHERE user_id = ? AND product_id = ?',
     [userId, productId]
@@ -83,7 +87,6 @@ export const addItem = async (
     throw new AppError('Insufficient stock', 400);
   }
 
-  // Upsert cart item
   await pool.query<ResultSetHeader>(
     `INSERT INTO cart_items (user_id, product_id, quantity)
     VALUES (?, ?, ?)
@@ -91,48 +94,12 @@ export const addItem = async (
     [userId, productId, quantity]
   );
 
-  // Get the updated cart item
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT
-      ci.id,
-      ci.user_id,
-      ci.product_id,
-      ci.quantity,
-      ci.created_at,
-      ci.updated_at,
-      p.id          AS p_id,
-      p.name        AS p_name,
-      p.description AS p_description,
-      p.price       AS p_price,
-      p.image_url   AS p_image_url,
-      p.category    AS p_category,
-      p.stock       AS p_stock,
-      p.created_at  AS p_created_at
-    FROM cart_items ci
-    JOIN products p ON ci.product_id = p.id
-    WHERE ci.user_id = ? AND ci.product_id = ?`,
+    `${CART_ITEM_JOIN_SQL} WHERE ci.user_id = ? AND ci.product_id = ?`,
     [userId, productId]
   );
 
-  const row = rows[0];
-  return {
-    id: row.id,
-    user_id: row.user_id,
-    product_id: row.product_id,
-    quantity: row.quantity,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    product: {
-      id: row.p_id,
-      name: row.p_name,
-      description: row.p_description,
-      price: row.p_price,
-      image_url: row.p_image_url,
-      category: row.p_category,
-      stock: row.p_stock,
-      created_at: row.p_created_at,
-    },
-  };
+  return mapCartItemRow(rows[0]);
 };
 
 export const updateItem = async (
@@ -140,7 +107,6 @@ export const updateItem = async (
   itemId: number,
   quantity: number
 ): Promise<CartItemWithProduct | null> => {
-  // If quantity is 0 or less, delete the item
   if (quantity <= 0) {
     const [result] = await pool.query<ResultSetHeader>(
       'DELETE FROM cart_items WHERE id = ? AND user_id = ?',
@@ -152,7 +118,6 @@ export const updateItem = async (
     return null;
   }
 
-  // Fetch item + product stock in one query to validate before updating
   const [stockRows] = await pool.query<RowDataPacket[]>(
     `SELECT p.stock FROM cart_items ci
      JOIN products p ON ci.product_id = p.id
@@ -168,54 +133,17 @@ export const updateItem = async (
     throw new AppError('Insufficient stock', 400);
   }
 
-  // Update quantity
   await pool.query<ResultSetHeader>(
     'UPDATE cart_items SET quantity = ? WHERE id = ? AND user_id = ?',
     [quantity, itemId, userId]
   );
 
-  // Get the updated cart item
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT
-      ci.id,
-      ci.user_id,
-      ci.product_id,
-      ci.quantity,
-      ci.created_at,
-      ci.updated_at,
-      p.id          AS p_id,
-      p.name        AS p_name,
-      p.description AS p_description,
-      p.price       AS p_price,
-      p.image_url   AS p_image_url,
-      p.category    AS p_category,
-      p.stock       AS p_stock,
-      p.created_at  AS p_created_at
-    FROM cart_items ci
-    JOIN products p ON ci.product_id = p.id
-    WHERE ci.id = ?`,
+    `${CART_ITEM_JOIN_SQL} WHERE ci.id = ?`,
     [itemId]
   );
 
-  const row = rows[0];
-  return {
-    id: row.id,
-    user_id: row.user_id,
-    product_id: row.product_id,
-    quantity: row.quantity,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    product: {
-      id: row.p_id,
-      name: row.p_name,
-      description: row.p_description,
-      price: row.p_price,
-      image_url: row.p_image_url,
-      category: row.p_category,
-      stock: row.p_stock,
-      created_at: row.p_created_at,
-    },
-  };
+  return mapCartItemRow(rows[0]);
 };
 
 export const removeItem = async (

@@ -18,11 +18,23 @@ export interface AuthContextValue {
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
+const isAuthUser = (value: unknown): value is AuthUser => {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.id === 'number' &&
+    typeof v.email === 'string' &&
+    typeof v.first_name === 'string' &&
+    typeof v.last_name === 'string'
+  );
+};
+
 const loadUserFromStorage = (): AuthUser | null => {
   try {
     const raw = getRawUser();
     if (!raw) return null;
-    return JSON.parse(raw) as AuthUser;
+    const parsed: unknown = JSON.parse(raw);
+    return isAuthUser(parsed) ? parsed : null;
   } catch {
     return null;
   }

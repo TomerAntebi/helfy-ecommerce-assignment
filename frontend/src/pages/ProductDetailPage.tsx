@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorMessage } from '../components/ErrorMessage';
@@ -6,9 +6,10 @@ import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../hooks/useCart';
 import * as productsService from '../services/products.service';
 import type { Product } from '../types';
+import { getPlaceholderImage } from '../utils/images';
 import { extractApiError } from '../utils/apiError';
 
-const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&h=600&fit=crop';
+const PLACEHOLDER_IMAGE = getPlaceholderImage(600, 600);
 
 export const ProductDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -23,14 +24,22 @@ export const ProductDetailPage = () => {
   const [addSuccess, setAddSuccess] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (successTimerRef.current !== null) clearTimeout(successTimerRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     if (!id) return;
     const fetchProduct = async () => {
       try {
         const result = await productsService.getProductById(Number(id));
         setProduct(result);
-      } catch {
-        setError('Product not found');
+      } catch (err) {
+        setError(extractApiError(err, 'Product not found'));
       } finally {
         setLoading(false);
       }
@@ -50,7 +59,8 @@ export const ProductDetailPage = () => {
     try {
       await addItem(product.id, 1);
       setAddSuccess(true);
-      setTimeout(() => setAddSuccess(false), 2500);
+      if (successTimerRef.current !== null) clearTimeout(successTimerRef.current);
+      successTimerRef.current = setTimeout(() => setAddSuccess(false), 2500);
     } catch (err) {
       setAddError(extractApiError(err, 'Failed to add item'));
     } finally {

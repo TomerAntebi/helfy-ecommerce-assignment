@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Order } from '../types';
 import * as ordersService from '../services/orders.service';
 
@@ -6,28 +6,36 @@ interface UseOrdersReturn {
   orders: Order[];
   loading: boolean;
   error: string | null;
+  refetch: () => void;
 }
 
 export const useOrders = (): UseOrdersReturn => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchOrders = async () => {
       setLoading(true);
       setError(null);
       try {
         const result = await ordersService.getOrders();
-        setOrders(result);
+        if (!cancelled) setOrders(result);
       } catch {
-        setError('Failed to load orders');
+        if (!cancelled) setError('Failed to load orders');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     void fetchOrders();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [tick]);
 
-  return { orders, loading, error };
+  const refetch = useCallback(() => setTick((t) => t + 1), []);
+
+  return { orders, loading, error, refetch };
 };

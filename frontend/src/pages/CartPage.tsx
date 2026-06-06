@@ -10,29 +10,32 @@ import { extractApiError } from '../utils/apiError';
 export const CartPage = () => {
   const { items, total, loading, updateItem, removeItem } = useCart();
   const [actionError, setActionError] = useState<string | null>(null);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [loadingItems, setLoadingItems] = useState<Record<number, boolean>>({});
+
+  const setItemLoading = (itemId: number, isLoading: boolean) =>
+    setLoadingItems((prev) => ({ ...prev, [itemId]: isLoading }));
 
   const handleQuantityChange = async (itemId: number, quantity: number) => {
     setActionError(null);
-    setActionLoading(true);
+    setItemLoading(itemId, true);
     try {
       await updateItem(itemId, quantity);
     } catch (err) {
       setActionError(extractApiError(err, 'Failed to update item'));
     } finally {
-      setActionLoading(false);
+      setItemLoading(itemId, false);
     }
   };
 
   const handleRemove = async (itemId: number) => {
     setActionError(null);
-    setActionLoading(true);
+    setItemLoading(itemId, true);
     try {
       await removeItem(itemId);
     } catch (err) {
       setActionError(extractApiError(err, 'Failed to remove item'));
     } finally {
-      setActionLoading(false);
+      setItemLoading(itemId, false);
     }
   };
 
@@ -48,6 +51,8 @@ export const CartPage = () => {
       />
     );
   }
+
+  const anyLoading = Object.values(loadingItems).some(Boolean);
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -66,7 +71,7 @@ export const CartPage = () => {
             item={item}
             onQuantityChange={(itemId, qty) => void handleQuantityChange(itemId, qty)}
             onRemove={(itemId) => void handleRemove(itemId)}
-            loading={actionLoading}
+            loading={loadingItems[item.id] ?? false}
           />
         ))}
       </div>
@@ -78,7 +83,10 @@ export const CartPage = () => {
         </div>
         <Link
           to="/checkout"
-          className="block w-full text-center bg-indigo-600 text-white py-3 rounded-xl font-bold text-base hover:bg-indigo-700 transition-colors shadow-md"
+          className={`block w-full text-center bg-indigo-600 text-white py-3 rounded-xl font-bold text-base hover:bg-indigo-700 transition-colors shadow-md ${
+            anyLoading ? 'pointer-events-none opacity-60' : ''
+          }`}
+          aria-disabled={anyLoading}
         >
           Proceed to Checkout
         </Link>

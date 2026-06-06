@@ -372,3 +372,49 @@ The database schema and seed data must be applied manually in local development:
 mysql -u root -p < mysql/init/01-schema.sql
 mysql -u root -p < mysql/init/02-seed.sql
 ```
+
+---
+
+## Running Tests
+
+Tests run without Docker and do not require a real database. All database calls are mocked.
+
+### Backend tests
+
+```bash
+cd backend
+npm test
+```
+
+**What is tested (28 tests across 6 files):**
+
+| File | Tests |
+|------|-------|
+| `auth.service.test.ts` | signup rejects duplicate email; password is hashed not plain-text; JWT payload has no password; login rejects unknown user; login rejects wrong password; login JWT has no password |
+| `products.service.test.ts` | no WHERE clause without filters; LIKE clause for search; category exact match; min/max price range; getProductById 404 |
+| `cart.service.test.ts` | addItem 404 for unknown product; addItem 400 when qty exceeds stock; addItem 400 when cumulative qty exceeds stock; updateItem 400 when qty exceeds stock; updateItem deletes row on qty=0; removeItem 404 when not found; removeItem DELETE scopes to user_id |
+| `orders.service.test.ts` | empty cart 400; stock insufficient 400; stock reduced per item; order items inserted; cart cleared after success; rollback on error |
+| `error.middleware.test.ts` | AppError returns correct status; generic Error returns 500 |
+| `health.service.test.ts` | returns true on SELECT 1 success; propagates error on DB failure |
+
+### Frontend tests
+
+```bash
+cd frontend
+npm test
+```
+
+**What is tested (35 tests across 10 files):**
+
+| File | Tests |
+|------|-------|
+| `validators.test.ts` | valid email true; missing @; missing domain; empty string; multiple @ |
+| `apiError.test.ts` | structured Axios error; unstructured Axios error; non-Axios fallback |
+| `useSafeRedirect.test.tsx` | no param returns /; valid internal path; external URL rejected |
+| `products.service.test.ts` | envelope unwrapped from getProducts; envelope unwrapped from getProductById; filters forwarded as params |
+| `ProtectedRoute.test.tsx` | unauthenticated redirects to login; authenticated renders children |
+| `ProductCard.test.tsx` | renders name; renders price; renders category; out-of-stock state |
+| `LoginPage.test.tsx` | renders email and password fields; required field errors; invalid email format |
+| `SignupPage.test.tsx` | renders all required fields; password length error; redirect param accepted |
+| `CartPage.test.tsx` | empty cart state; renders item names; checkout link visible; per-item loading disables controls |
+| `CheckoutPage.test.tsx` | empty cart shows empty state; shipping form visible; shipping validation errors; payment last-four required; full flow shows confirmation |

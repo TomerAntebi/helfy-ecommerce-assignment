@@ -15,8 +15,8 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    ports:
-      - "3306:3306"
+    # Port 3306 is not exposed to the host — the backend reaches it over the
+    # Docker internal network. Remove the mapping to reduce the attack surface.
 
   backend:
     build: ./backend

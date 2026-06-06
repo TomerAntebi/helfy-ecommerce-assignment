@@ -6,6 +6,19 @@ export interface AuthenticatedRequest extends Request {
   user?: { id: number; email: string };
 }
 
+// Returns req.user with a required type, throwing if authenticate somehow
+// did not populate it (defensive guard that also satisfies TypeScript).
+export const requireUser = (
+  req: AuthenticatedRequest
+): { id: number; email: string } => {
+  if (!req.user) {
+    // This branch is unreachable in practice: authenticate has already
+    // sent a 401 and not called next() when user is absent.
+    throw new Error('Unauthenticated request reached authenticated handler');
+  }
+  return req.user;
+};
+
 export const authenticate = (
   req: AuthenticatedRequest,
   res: Response,

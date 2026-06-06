@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { body, param } from 'express-validator';
 import { authenticate } from '../../middleware/auth.middleware';
+import { validateRequest } from '../../middleware/validate.middleware';
 import * as ordersController from './orders.controller';
 
 const router = Router();
@@ -12,6 +13,7 @@ router.get(
   '/:id',
   authenticate,
   param('id').isInt({ min: 1 }).withMessage('Order ID must be a positive integer'),
+  validateRequest,
   ordersController.getOrderById
 );
 
@@ -32,6 +34,7 @@ router.post(
       .matches(/^\d{4}$/)
       .withMessage('Last four digits must be exactly 4 numeric characters'),
   ],
+  validateRequest,
   ordersController.createOrder
 );
 

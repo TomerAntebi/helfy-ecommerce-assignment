@@ -49,21 +49,28 @@ export const signup = async (data: SignupData): Promise<AuthResponse> => {
     throw new AppError('Email already in use', 409);
   }
 
-  // Hash password
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
-  // Insert user
-  const [result] = await pool.query<ResultSetHeader>(
-    'INSERT INTO users (email, password_hash, first_name, last_name) VALUES (?, ?, ?, ?)',
-    [email, passwordHash, first_name, last_name]
-  );
-
-  const userId = result.insertId;
-
-  return {
-    token: issueToken(userId, email),
-    user: { id: userId, email, first_name, last_name },
-  };
+  try {
+    const [result] = await pool.query<ResultSetHeader>(
+      'INSERT INTO users (email, password_hash, first_name, last_name) VALUES (?, ?, ?, ?)',
+      [email, passwordHash, first_name, last_name]
+    );
+    const userId = result.insertId;
+    return {
+      token: issueToken(userId, email),
+      user: { id: userId, email, first_name, last_name },
+    };
+  } catch (error) {
+    // Two concurrent signups with the same email can both pass the SELECT check
+    // above. The second INSERT hits the UNIQUE constraint and MySQL returns 1062.
+    // MySQL errors extend Error and carry a `code` property (same shape as
+    // NodeJS.ErrnoException). Checking instanceof + 'code' in avoids a blind cast.
+    if (error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'ER_DUP_ENTRY') {
+      throw new AppError('Email already in use', 409);
+    }
+    throw error;
+  }
 };
 
 export const login = async (data: LoginData): Promise<AuthResponse> => {

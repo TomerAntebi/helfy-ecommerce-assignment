@@ -1,10 +1,14 @@
 import { useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
 import { CheckoutStepIndicator } from '../components/CheckoutStepIndicator';
-import { ErrorMessage } from '../components/ErrorMessage';
+import { EmptyState } from '../components/EmptyState';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { ShippingStep } from '../components/checkout/ShippingStep';
+import { PaymentStep } from '../components/checkout/PaymentStep';
+import { ReviewStep } from '../components/checkout/ReviewStep';
+import { ConfirmationStep } from '../components/checkout/ConfirmationStep';
 import { useCart } from '../hooks/useCart';
 import * as ordersService from '../services/orders.service';
+import * as checkoutService from '../services/checkout.service';
 import {
   CHECKOUT_STEP,
   type CheckoutState,
@@ -89,6 +93,13 @@ export const CheckoutPage = () => {
     setSubmitting(true);
     setPlaceOrderError(null);
     try {
+      // Validate cart stock before creating the order
+      const validation = await checkoutService.validateCart(items.map((item) => item.id));
+      if (!validation.valid) {
+        setPlaceOrderError(validation.errors.join(' '));
+        return;
+      }
+
       const order = await ordersService.createOrder({
         shipping_full_name: state.shippingData.full_name,
         shipping_street: state.shippingData.street,
@@ -110,203 +121,61 @@ export const CheckoutPage = () => {
 
   if (cartLoading) return <LoadingSpinner />;
 
+  // Guard: show empty state when cart has no items (unless we already confirmed the order)
+  if (items.length === 0 && state.currentStep !== CHECKOUT_STEP.CONFIRMATION) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
+        <EmptyState
+          title="Your cart is empty"
+          description="Add some items to your cart before checking out."
+          actionLabel="Browse Products"
+          actionTo="/products"
+          icon="🛍️"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
       <h1 className="text-3xl font-bold text-slate-900 mb-6 text-center">Checkout</h1>
       <CheckoutStepIndicator currentStep={state.currentStep} />
 
-      {/* ── Step 1: Shipping ─────────────────────────────────────────────── */}
       {state.currentStep === CHECKOUT_STEP.SHIPPING && (
-        <div className="bg-white rounded-2xl shadow-md p-6">
-          <h2 className="text-lg font-bold text-slate-800 mb-5">Shipping Address</h2>
-          <form onSubmit={handleStep1Submit} noValidate className="space-y-4">
-            {(
-              [
-                { key: 'full_name', label: 'Full Name', placeholder: 'Jane Doe' },
-                { key: 'street', label: 'Street Address', placeholder: '123 Main St' },
-                { key: 'city', label: 'City', placeholder: 'New York' },
-                { key: 'state', label: 'State', placeholder: 'NY' },
-                { key: 'zip_code', label: 'ZIP Code', placeholder: '10001' },
-                { key: 'country', label: 'Country', placeholder: 'United States' },
-              ] as { key: keyof ShippingFormData; label: string; placeholder: string }[]
-            ).map(({ key, label, placeholder }) => (
-              <div key={key}>
-                <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
-                <input
-                  type="text"
-                  value={shippingForm[key]}
-                  onChange={(e) => setShippingForm((f) => ({ ...f, [key]: e.target.value }))}
-                  placeholder={placeholder}
-                  className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors ${
-                    shippingErrors[key] ? 'border-red-400' : 'border-slate-300'
-                  }`}
-                />
-                {shippingErrors[key] && (
-                  <p className="text-red-500 text-xs mt-1">{shippingErrors[key]}</p>
-                )}
-              </div>
-            ))}
-            <button
-              type="submit"
-              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors mt-2"
-            >
-              Continue to Payment →
-            </button>
-          </form>
-        </div>
+        <ShippingStep
+          form={shippingForm}
+          errors={shippingErrors}
+          onChange={(key, value) => setShippingForm((f) => ({ ...f, [key]: value }))}
+          onSubmit={handleStep1Submit}
+        />
       )}
 
-      {/* ── Step 2: Payment ──────────────────────────────────────────────── */}
       {state.currentStep === CHECKOUT_STEP.PAYMENT && (
-        <div className="bg-white rounded-2xl shadow-md p-6">
-          <h2 className="text-lg font-bold text-slate-800 mb-5">Payment Method</h2>
-          <form onSubmit={handleStep2Submit} noValidate className="space-y-4">
-            {(
-              [
-                { value: 'credit_card', label: 'Credit Card' },
-                { value: 'paypal', label: 'PayPal' },
-                { value: 'bank_transfer', label: 'Bank Transfer' },
-              ] as { value: PaymentMethod; label: string }[]
-            ).map(({ value, label }) => (
-              <label key={value} className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="radio"
-                  name="payment_method"
-                  value={value}
-                  checked={paymentForm.method === value}
-                  onChange={() => setPaymentForm({ method: value })}
-                  className="accent-indigo-600"
-                />
-                <span className="text-sm font-medium text-slate-700">{label}</span>
-              </label>
-            ))}
-            {paymentErrors.method && (
-              <p className="text-red-500 text-xs">{paymentErrors.method}</p>
-            )}
-
-            {paymentForm.method === 'credit_card' && (
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Last 4 digits of card
-                </label>
-                <input
-                  type="text"
-                  maxLength={4}
-                  placeholder="1234"
-                  value={paymentForm.last_four ?? ''}
-                  onChange={(e) =>
-                    setPaymentForm((f) => ({ ...f, last_four: e.target.value }))
-                  }
-                  className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors ${
-                    paymentErrors.last_four ? 'border-red-400' : 'border-slate-300'
-                  }`}
-                />
-                {paymentErrors.last_four && (
-                  <p className="text-red-500 text-xs mt-1">{paymentErrors.last_four}</p>
-                )}
-              </div>
-            )}
-
-            <div className="flex gap-3 mt-2">
-              <button
-                type="button"
-                onClick={() => setState((s) => ({ ...s, currentStep: CHECKOUT_STEP.SHIPPING }))}
-                className="flex-1 border border-slate-300 text-slate-700 py-3 rounded-xl font-semibold hover:bg-slate-50 transition-colors"
-              >
-                ← Back
-              </button>
-              <button
-                type="submit"
-                className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors"
-              >
-                Review Order →
-              </button>
-            </div>
-          </form>
-        </div>
+        <PaymentStep
+          form={paymentForm}
+          errors={paymentErrors}
+          onMethodChange={(method: PaymentMethod) => setPaymentForm({ method })}
+          onLastFourChange={(value) => setPaymentForm((f) => ({ ...f, last_four: value }))}
+          onSubmit={handleStep2Submit}
+          onBack={() => setState((s) => ({ ...s, currentStep: CHECKOUT_STEP.SHIPPING }))}
+        />
       )}
 
-      {/* ── Step 3: Review ───────────────────────────────────────────────── */}
       {state.currentStep === CHECKOUT_STEP.REVIEW && state.shippingData && state.paymentData && (
-        <div className="space-y-4">
-          {/* Cart items */}
-          <div className="bg-white rounded-2xl shadow-md p-6">
-            <h2 className="text-lg font-bold text-slate-800 mb-4">Order Summary</h2>
-            {items.map((item) => (
-              <div key={item.id} className="flex justify-between items-center py-2 border-b border-slate-100 last:border-0">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{item.product.name}</p>
-                  <p className="text-xs text-slate-500">Qty: {item.quantity}</p>
-                </div>
-                <p className="text-sm font-bold text-slate-900">
-                  ${(Number(item.product.price) * item.quantity).toFixed(2)}
-                </p>
-              </div>
-            ))}
-            <div className="flex justify-between items-center pt-4 mt-2 border-t border-slate-200">
-              <span className="font-bold text-slate-700">Total</span>
-              <span className="text-xl font-extrabold text-slate-900">${Number(total).toFixed(2)}</span>
-            </div>
-          </div>
-
-          {/* Shipping */}
-          <div className="bg-white rounded-2xl shadow-md p-6">
-            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3">Shipping Address</h3>
-            <p className="text-sm text-slate-700">{state.shippingData.full_name}</p>
-            <p className="text-sm text-slate-700">{state.shippingData.street}</p>
-            <p className="text-sm text-slate-700">
-              {state.shippingData.city}, {state.shippingData.state} {state.shippingData.zip_code}
-            </p>
-            <p className="text-sm text-slate-700">{state.shippingData.country}</p>
-          </div>
-
-          {/* Payment */}
-          <div className="bg-white rounded-2xl shadow-md p-6">
-            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3">Payment</h3>
-            <p className="text-sm text-slate-700 capitalize">
-              {state.paymentData.method.replace('_', ' ')}
-              {state.paymentData.last_four ? ` ending in ${state.paymentData.last_four}` : ''}
-            </p>
-          </div>
-
-          {placeOrderError && <ErrorMessage message={placeOrderError} />}
-
-          <div className="flex gap-3">
-            <button
-              onClick={() => setState((s) => ({ ...s, currentStep: CHECKOUT_STEP.PAYMENT }))}
-              className="flex-1 border border-slate-300 text-slate-700 py-3 rounded-xl font-semibold hover:bg-slate-50 transition-colors"
-            >
-              ← Back
-            </button>
-            <button
-              onClick={() => void handlePlaceOrder()}
-              disabled={submitting}
-              className="flex-1 bg-emerald-500 text-white py-3 rounded-xl font-bold hover:bg-emerald-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {submitting ? 'Placing order...' : 'Place Order'}
-            </button>
-          </div>
-        </div>
+        <ReviewStep
+          items={items}
+          total={total}
+          shippingData={state.shippingData}
+          paymentData={state.paymentData}
+          onPlaceOrder={handlePlaceOrder}
+          onBack={() => setState((s) => ({ ...s, currentStep: CHECKOUT_STEP.PAYMENT }))}
+          submitting={submitting}
+          error={placeOrderError}
+        />
       )}
 
-      {/* ── Step 4: Confirmation ─────────────────────────────────────────── */}
       {state.currentStep === CHECKOUT_STEP.CONFIRMATION && state.confirmedOrderId !== null && (
-        <div className="bg-white rounded-2xl shadow-md p-10 text-center">
-          <div className="text-6xl mb-4">🎉</div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Order placed successfully!</h2>
-          <p className="text-slate-600 mb-2">
-            Your order <span className="font-bold text-indigo-600">#{state.confirmedOrderId}</span> is confirmed.
-          </p>
-          <p className="text-slate-500 text-sm mb-8">
-            We&apos;ll start processing your order right away.
-          </p>
-          <Link
-            to="/orders"
-            className="inline-block bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors"
-          >
-            View My Orders
-          </Link>
-        </div>
+        <ConfirmationStep orderId={state.confirmedOrderId} />
       )}
     </div>
   );
