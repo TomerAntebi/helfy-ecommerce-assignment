@@ -41,7 +41,7 @@ The project demonstrates the use of generative AI as a force multiplier in full-
 
 ```bash
 # 1. Clone the repository
-git clone <repository-url>
+git clone https://github.com/TomerAntebi/helfy-ecommerce-assignment.git
 cd helfy_assignment
 
 # 2. Copy the environment file
