@@ -739,6 +739,98 @@ N/A
 - **Issue 19 — Page upper bound:** Capped `limit` at 50 via validator; high page numbers return 0 rows harmlessly.
 - **Issue 21 — Auth rate limiting:** `express-rate-limit` is not in the project dependencies; adding a new library is not approved for this assignment.
 
+---
+
+## Interaction 14 — Docker Compose Startup Fix (Missing .env)
+
+**Date:** 2026-06-08
+**Model:** claude-sonnet-4.6
+**Tool:** Cursor Agent mode
+
+### Root Cause
+
+`docker-compose.yml` used bare `${VAR}` syntax for all environment variables with no fallback defaults. When a reviewer ran `docker compose up --build` without first creating a `.env` file, Docker Compose substituted empty strings. MySQL rejected the empty `MYSQL_ROOT_PASSWORD` at container initialisation time with:
+
+```
+Database is uninitialized and password option is not specified.
+You need to specify one of MYSQL_ROOT_PASSWORD / MYSQL_ALLOW_EMPTY_PASSWORD / MYSQL_RANDOM_ROOT_PASSWORD
+```
+
+The healthcheck command `-p${MYSQL_ROOT_PASSWORD}` had the same problem — it would become `-p` (no password) and always fail.
+
+### Fix
+
+Added `:-default` fallbacks to every `${VAR}` reference in `docker-compose.yml` so the stack starts cleanly with no `.env` present. The defaults match the values already in `.env.example`.
+
+### Files Changed
+
+| File | What changed |
+|------|-------------|
+| `docker-compose.yml` | All `${VAR}` replaced with `${VAR:-default}` for `db` and `backend` services; healthcheck uses `${MYSQL_ROOT_PASSWORD:-rootpassword}` |
+| `.env.example` | Header comment updated to clarify `.env` is optional |
+| `README.md` | Quick Start now shows `docker compose up --build` as step 2 (no `cp .env.example .env` required); Environment Variables section updated |
+
+### Verification
+
+```bash
+# Clean run with no .env file present
+docker compose down -v
+docker compose up --build
+```
+
+All three services (`db`, `backend`, `frontend`) reach healthy state without a `.env` file.
+
+---
+
+## Interaction 15 — Product Stock Display Fix
+
+**Date:** 2026-06-08
+**Model:** claude-sonnet-4.6
+**Tool:** Cursor Agent mode
+
+### Reported Issue
+
+Product detail page showed stale physical stock (`product.stock`) after adding to cart. Adding 1 item to a product with 48 in stock still showed "48 available" rather than "47 available".
+
+### Root Cause
+
+`ProductDetailPage` fetches `product.stock` once on mount and renders it as-is. The backend never reduces `products.stock` when adding to a cart — stock only decreases when an order is placed. However, the cart context (`CartContext`) already maintained an up-to-date list of `items` (refreshed via `fetchCart()` after every `addItem` call). The page simply never used that cart data to subtract the user's already-carted quantity from the displayed stock.
+
+### Fix
+
+Only `frontend/src/pages/ProductDetailPage.tsx` was changed:
+
+1. Added `items: cartItems` to the `useCart()` destructure.
+2. Computed `currentCartQty` by finding the cart item whose `product_id` matches the current product.
+3. Computed `availableStock = Math.max(product.stock - currentCartQty, 0)`.
+4. Replaced all three uses of `product.stock` in the JSX with `availableStock` (stock badge, "Out of stock" fallback, Add to Cart button guard).
+
+No backend changes. No schema changes. Cart refresh already happened on every add — the fix only wires the existing cart state into the display.
+
+### Files Changed
+
+| File | What changed |
+|------|-------------|
+| `frontend/src/pages/ProductDetailPage.tsx` | Reads `items` from cart context; computes and displays `availableStock` |
+
+### Behaviour After Fix
+
+| Scenario | Displayed |
+|----------|-----------|
+| Page loads, 0 in cart | ✓ In stock (48 available) |
+| Add 1 to cart | ✓ In stock (47 available) — instant, no extra request needed |
+| Refresh page | Cart reloads from backend → still 47 |
+| Place order | DB stock reduced; cart cleared; page shows correct physical inventory |
+
+### Build Results
+
+- Frontend: `npm run build` — ✅ 0 errors (127 modules, 262 kB)
+- Backend: unchanged — no rebuild needed
+
+### Remaining Risk
+
+`ProductCard` on the products listing page still shows the "Add to Cart" button based on raw `product.stock > 0` (the DB physical stock). It does not show a count, so it will not mislead users with a number. However, if a user has already carted all available units of a product, the card will still show the "Add to Cart" button — clicking it will get a backend 400 "Insufficient stock" error. This is consistent with the assignment scope and is the same behaviour as before this fix.
+
 ## Models Used — Summary
 
 | Phase | Model | Tool | Reason for selection |
@@ -757,6 +849,7 @@ N/A
 | Post Phase 6 — Frontend Hardening | claude-sonnet-4-5 | Cursor Agent | Frontend audit: authStorage utility, apiError utility, event-based 401 handling, named constants |
 | Post Phase 6 — SOLID / DRY Audit | claude-sonnet-4.5 | Cursor Agent | Full SOLID/DRY audit: validate middleware, helper extraction, useDebounce, step components, CORS config, ER_DUP_ENTRY, outside-click, ErrorBoundary |
 | Post Phase 6 — Second Audit | claude-sonnet-4.6 | Cursor Agent | Bug fixes, UX guards, health module refactor, DB indexes, port hardening, checkout validation integration |
+| Post Phase 6 — Docker defaults fix | claude-sonnet-4.6 | Cursor Agent | Added `:-` fallback defaults to all docker-compose.yml env vars so the stack starts without a .env file |
 
 ---
 
@@ -777,6 +870,8 @@ N/A
 | Cursor (Agent mode) | Frontend audit and hardening — authStorage, apiError, event-based 401 | Post Phase 6 |
 | Cursor (Agent mode) | SOLID/DRY audit — validate middleware, step components, hooks, CORS, ER_DUP_ENTRY | Post Phase 6 |
 | Cursor (Agent mode) | Second audit — bug fixes, UX guards, health refactor, DB indexes, checkout validate, port hardening | Post Phase 6 |
+| Cursor (Agent mode) | Docker defaults fix — `:-` fallbacks in docker-compose.yml so stack runs without .env | Post Phase 6 |
+| Cursor (Agent mode) | Stock display fix — ProductDetailPage computes availableStock from cart context | Post Phase 6 |
 
 ---
 

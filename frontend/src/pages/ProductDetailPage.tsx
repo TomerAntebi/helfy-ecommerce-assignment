@@ -14,7 +14,7 @@ const PLACEHOLDER_IMAGE = getPlaceholderImage(600, 600);
 export const ProductDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
-  const { addItem } = useCart();
+  const { addItem, items: cartItems } = useCart();
   const navigate = useNavigate();
 
   const [product, setProduct] = useState<Product | null>(null);
@@ -68,6 +68,10 @@ export const ProductDetailPage = () => {
     }
   };
 
+  const currentCartQty =
+    cartItems.find((item) => item.product_id === product?.id)?.quantity ?? 0;
+  const availableStock = product ? Math.max(product.stock - currentCartQty, 0) : 0;
+
   if (loading) return <LoadingSpinner />;
   if (error || !product) {
     return (
@@ -113,9 +117,9 @@ export const ProductDetailPage = () => {
             ${Number(product.price).toFixed(2)}
           </div>
           <div className="mb-6">
-            {product.stock > 0 ? (
+            {availableStock > 0 ? (
               <span className="text-emerald-600 text-sm font-semibold">
-                ✓ In stock ({product.stock} available)
+                ✓ In stock ({availableStock} available)
               </span>
             ) : (
               <span className="text-red-500 text-sm font-semibold">✗ Out of stock</span>
@@ -133,7 +137,7 @@ export const ProductDetailPage = () => {
             </div>
           )}
 
-          {product.stock > 0 && (
+          {availableStock > 0 && (
             <button
               onClick={() => void handleAddToCart()}
               disabled={adding}

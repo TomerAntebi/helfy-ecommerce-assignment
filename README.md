@@ -43,16 +43,22 @@ The project demonstrates the use of generative AI as a force multiplier in full-
 # 1. Clone the repository
 git clone https://github.com/TomerAntebi/helfy-ecommerce-assignment.git
 
-# 2. Copy the environment file
-cp .env.example .env
-
-# 3. Start all services
+# 2. Start all services — no .env file required
 docker compose up --build
 ```
 
 The application will be available at **http://localhost:3000**
 
 The API health check is available at **http://localhost:3000/api/health**
+
+> **Note:** `docker compose up --build` works out of the box without a `.env` file.
+> Safe defaults are built into `docker-compose.yml`. If you want to override passwords
+> or the JWT secret, copy the example file first:
+> ```bash
+> cp .env.example .env
+> # edit .env as needed, then:
+> docker compose up --build
+> ```
 
 On first startup, Docker will:
 - Pull all required images
@@ -71,7 +77,7 @@ docker compose up --build
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and adjust values as needed. The defaults work for local Docker development without modification. **Change `JWT_SECRET` and all passwords before deploying to production.**
+All variables have safe defaults baked into `docker-compose.yml`, so no `.env` file is required to run locally. To override any value, copy `.env.example` to `.env` and edit it before running. **Change `JWT_SECRET` and all passwords before deploying to production.**
 
 | Variable | Description | Default |
 |----------|-------------|---------|
